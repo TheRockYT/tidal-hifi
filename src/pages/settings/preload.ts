@@ -92,12 +92,20 @@ function getThemeFiles() {
 async function populateAudioDevices() {
   const selectElement = document.getElementById("audioOutputDevice") as HTMLSelectElement;
   
+  // Check if setSinkId is supported by the browser
+  if (typeof HTMLMediaElement.prototype.setSinkId === 'undefined') {
+    Logger.log("Audio output device selection is not supported in this browser");
+    selectElement.disabled = true;
+    return;
+  }
+  
   try {
     // First try to enumerate without requesting permissions
     let devices = await navigator.mediaDevices.enumerateDevices();
     let audioOutputDevices = devices.filter(device => device.kind === 'audiooutput');
     
     // If device labels are not available, request minimal audio permissions
+    // Only do this if we have devices but no labels
     if (audioOutputDevices.length > 0 && !audioOutputDevices[0].label) {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ 
@@ -110,6 +118,7 @@ async function populateAudioDevices() {
         audioOutputDevices = devices.filter(device => device.kind === 'audiooutput');
       } catch (permError) {
         Logger.log("Could not get device labels due to permissions:", permError);
+        // Continue with unlabeled devices
       }
     }
     

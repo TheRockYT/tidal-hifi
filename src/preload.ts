@@ -732,20 +732,38 @@ function observeMediaElements() {
   });
 }
 
+let currentAudioDeviceId: string | null = null;
+
 /**
  * Initialize audio output device handling
  */
 function initAudioOutputDevice() {
-  // Apply to existing elements when page loads
-  window.addEventListener('DOMContentLoaded', () => {
+  // Function to initialize audio device
+  const initializeAudioDevice = () => {
     applyAudioOutputDevice();
     observeMediaElements();
-  });
+    currentAudioDeviceId = settingsStore.get<string, string>(settings.audioOutputDevice) || null;
+  };
 
-  // Reapply when the setting changes and restart observer
+  // Apply to existing elements when page loads
+  // Check if DOM is already loaded
+  if (document.readyState === 'loading') {
+    window.addEventListener('DOMContentLoaded', initializeAudioDevice);
+  } else {
+    // DOM is already loaded
+    initializeAudioDevice();
+  }
+
+  // Reapply when the audio device setting changes
   ipcRenderer.on(globalEvents.storeChanged, () => {
-    applyAudioOutputDevice();
-    observeMediaElements(); // Restart observer with new device ID
+    const newDeviceId = settingsStore.get<string, string>(settings.audioOutputDevice) || null;
+    
+    // Only update if the audio device setting actually changed
+    if (newDeviceId !== currentAudioDeviceId) {
+      currentAudioDeviceId = newDeviceId;
+      applyAudioOutputDevice();
+      observeMediaElements(); // Restart observer with new device ID
+    }
   });
 }
 
