@@ -656,8 +656,86 @@ setInterval(function () {
   }
 }, getUpdateFrequency());
 
+/**
+ * Apply the selected audio output device to all audio/video elements
+ */
+function applyAudioOutputDevice() {
+  const deviceId = settingsStore.get<string, string>(settings.audioOutputDevice);
+  
+  if (!deviceId) {
+    return; // Use default device
+  }
+
+  // Apply to all existing audio/video elements
+  const mediaElements = document.querySelectorAll('audio, video');
+  mediaElements.forEach((element: HTMLMediaElement) => {
+    if (typeof element.setSinkId === 'function') {
+      element.setSinkId(deviceId).catch((error) => {
+        Logger.log(`Failed to set audio output device on element:`, error);
+      });
+    }
+  });
+}
+
+/**
+ * Set up a MutationObserver to apply audio device to dynamically created media elements
+ */
+function observeMediaElements() {
+  const deviceId = settingsStore.get<string, string>(settings.audioOutputDevice);
+  
+  if (!deviceId) {
+    return; // Use default device
+  }
+
+  const observer = new MutationObserver((mutations) => {
+    mutations.forEach((mutation) => {
+      mutation.addedNodes.forEach((node) => {
+        if (node instanceof HTMLMediaElement) {
+          if (typeof node.setSinkId === 'function') {
+            node.setSinkId(deviceId).catch((error) => {
+              Logger.log(`Failed to set audio output device on new element:`, error);
+            });
+          }
+        } else if (node instanceof HTMLElement) {
+          // Check for media elements within the added node
+          const mediaElements = node.querySelectorAll('audio, video');
+          mediaElements.forEach((element: HTMLMediaElement) => {
+            if (typeof element.setSinkId === 'function') {
+              element.setSinkId(deviceId).catch((error) => {
+                Logger.log(`Failed to set audio output device on nested element:`, error);
+              });
+            }
+          });
+        }
+      });
+    });
+  });
+
+  observer.observe(document.body, {
+    childList: true,
+    subtree: true,
+  });
+}
+
+/**
+ * Initialize audio output device handling
+ */
+function initAudioOutputDevice() {
+  // Apply to existing elements when page loads
+  window.addEventListener('DOMContentLoaded', () => {
+    applyAudioOutputDevice();
+    observeMediaElements();
+  });
+
+  // Reapply when the setting changes
+  ipcRenderer.on(globalEvents.storeChanged, () => {
+    applyAudioOutputDevice();
+  });
+}
+
 addMPRIS();
 addCustomCss(app);
 addHotKeys();
 addIPCEventListeners();
 addFullScreenListeners();
+initAudioOutputDevice();

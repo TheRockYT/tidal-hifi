@@ -29,6 +29,7 @@ const switchesWithSettings = {
 
 let adBlock: HTMLInputElement,
   api: HTMLInputElement,
+  audioOutputDevice: HTMLSelectElement,
   channel: HTMLSelectElement,
   customCSS: HTMLInputElement,
   disableBackgroundThrottle: HTMLInputElement,
@@ -88,6 +89,31 @@ function getThemeFiles() {
   });
 }
 
+async function populateAudioDevices() {
+  const selectElement = document.getElementById("audioOutputDevice") as HTMLSelectElement;
+  
+  try {
+    // Request permission to enumerate devices
+    await navigator.mediaDevices.getUserMedia({ audio: true });
+    
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const audioOutputDevices = devices.filter(device => device.kind === 'audiooutput');
+    
+    // Clear existing options except the default one
+    while (selectElement.options.length > 1) {
+      selectElement.remove(1);
+    }
+    
+    // Add all audio output devices
+    audioOutputDevices.forEach(device => {
+      const option = new Option(device.label || `Device ${device.deviceId.slice(0, 8)}`, device.deviceId);
+      selectElement.add(option, null);
+    });
+  } catch (error) {
+    Logger.log("Failed to enumerate audio devices:", error);
+  }
+}
+
 function handleFileUploads() {
   const fileMessage = document.getElementById("file-message");
   fileMessage.innerText = "or drag and drop files here";
@@ -124,6 +150,7 @@ function refreshSettings() {
   try {
     adBlock.checked = settingsStore.get(settings.adBlock);
     api.checked = settingsStore.get(settings.api);
+    audioOutputDevice.value = settingsStore.get(settings.audioOutputDevice) || "";
     channel.value = settingsStore.get(settings.advanced.tidalUrl);
     customCSS.value = settingsStore.get<string, string[]>(settings.customCSS).join("\n");
     disableBackgroundThrottle.checked = settingsStore.get(settings.disableBackgroundThrottle);
@@ -191,6 +218,7 @@ window.addEventListener("DOMContentLoaded", () => {
 
   getThemeFiles();
   handleFileUploads();
+  populateAudioDevices();
 
   document.getElementById("close").addEventListener("click", hide);
   document.querySelectorAll(".external-link").forEach((elem) =>
@@ -244,6 +272,7 @@ window.addEventListener("DOMContentLoaded", () => {
 
   adBlock = get("adBlock");
   api = get("apiCheckbox");
+  audioOutputDevice = get<HTMLSelectElement>("audioOutputDevice");
   channel = get<HTMLSelectElement>("channel");
   customCSS = get("customCSS");
   disableBackgroundThrottle = get("disableBackgroundThrottle");
@@ -281,6 +310,7 @@ window.addEventListener("DOMContentLoaded", () => {
   refreshSettings();
   addInputListener(adBlock, settings.adBlock);
   addInputListener(api, settings.api);
+  addSelectListener(audioOutputDevice, settings.audioOutputDevice);
   addSelectListener(channel, settings.advanced.tidalUrl);
   addTextAreaListener(customCSS, settings.customCSS);
   addInputListener(disableBackgroundThrottle, settings.disableBackgroundThrottle);
