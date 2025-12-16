@@ -656,8 +656,122 @@ setInterval(function () {
   }
 }, getUpdateFrequency());
 
+/**
+ * Apply the selected audio output device to all audio/video elements
+ */
+function applyAudioOutputDevice() {
+  const deviceId = settingsStore.get<string, string>(settings.audioOutputDevice);
+  
+  if (!deviceId) {
+    return; // Use default device
+  }
+
+  // Apply to all existing audio/video elements
+  const mediaElements = document.querySelectorAll('audio, video');
+  mediaElements.forEach((element) => {
+    const mediaElement = element as HTMLMediaElement;
+    if (typeof mediaElement.setSinkId === 'function') {
+      mediaElement.setSinkId(deviceId).catch((error) => {
+        Logger.log(`Failed to set audio output device on element:`, error);
+      });
+    }
+  });
+}
+
+let mediaObserver: MutationObserver | null = null;
+
+/**
+ * Set up a MutationObserver to apply audio device to dynamically created media elements
+ */
+function observeMediaElements() {
+  // Disconnect existing observer if any
+  if (mediaObserver) {
+    mediaObserver.disconnect();
+    mediaObserver = null;
+  }
+
+  const deviceId = settingsStore.get<string, string>(settings.audioOutputDevice);
+  
+  if (!deviceId) {
+    return; // Use default device
+  }
+
+  mediaObserver = new MutationObserver((mutations) => {
+    // Fetch the current device ID dynamically in case it changed
+    const currentDeviceId = settingsStore.get<string, string>(settings.audioOutputDevice);
+    
+    if (!currentDeviceId) {
+      return; // Device was reset to default
+    }
+    
+    mutations.forEach((mutation) => {
+      mutation.addedNodes.forEach((node) => {
+        if (node instanceof HTMLMediaElement) {
+          if (typeof node.setSinkId === 'function') {
+            node.setSinkId(currentDeviceId).catch((error) => {
+              Logger.log(`Failed to set audio output device on new element:`, error);
+            });
+          }
+        } else if (node instanceof HTMLElement) {
+          // Check for media elements within the added node
+          const mediaElements = node.querySelectorAll('audio, video');
+          mediaElements.forEach((element) => {
+            const mediaElement = element as HTMLMediaElement;
+            if (typeof mediaElement.setSinkId === 'function') {
+              mediaElement.setSinkId(currentDeviceId).catch((error) => {
+                Logger.log(`Failed to set audio output device on nested element:`, error);
+              });
+            }
+          });
+        }
+      });
+    });
+  });
+
+  mediaObserver.observe(document.body, {
+    childList: true,
+    subtree: true,
+  });
+}
+
+let currentAudioDeviceId: string | null = null;
+
+/**
+ * Initialize audio output device handling
+ */
+function initAudioOutputDevice() {
+  // Function to initialize audio device
+  const initializeAudioDevice = () => {
+    applyAudioOutputDevice();
+    observeMediaElements();
+    currentAudioDeviceId = settingsStore.get<string, string>(settings.audioOutputDevice) || null;
+  };
+
+  // Apply to existing elements when page loads
+  // Check if DOM is already loaded
+  if (document.readyState === 'loading') {
+    window.addEventListener('DOMContentLoaded', initializeAudioDevice);
+  } else {
+    // DOM is already loaded
+    initializeAudioDevice();
+  }
+
+  // Reapply when the audio device setting changes
+  ipcRenderer.on(globalEvents.storeChanged, () => {
+    const newDeviceId = settingsStore.get<string, string>(settings.audioOutputDevice) || null;
+    
+    // Only update if the audio device setting actually changed
+    if (newDeviceId !== currentAudioDeviceId) {
+      currentAudioDeviceId = newDeviceId;
+      applyAudioOutputDevice();
+      observeMediaElements(); // Restart observer with new device ID
+    }
+  });
+}
+
 addMPRIS();
 addCustomCss(app);
 addHotKeys();
 addIPCEventListeners();
 addFullScreenListeners();
+initAudioOutputDevice();

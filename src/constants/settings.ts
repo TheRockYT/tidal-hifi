@@ -51,6 +51,7 @@ export const settings = {
   minimizeOnClose: "minimizeOnClose",
   mpris: "mpris",
   notifications: "notifications",
+  audioOutputDevice: "audioOutputDevice",
   playBackControl: "playBackControl",
   singleInstance: "singleInstance",
   skipArtists: "skipArtists",

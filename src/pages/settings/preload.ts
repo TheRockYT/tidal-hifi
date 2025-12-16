@@ -29,6 +29,7 @@ const switchesWithSettings = {
 
 let adBlock: HTMLInputElement,
   api: HTMLInputElement,
+  audioOutputDevice: HTMLSelectElement,
   channel: HTMLSelectElement,
   customCSS: HTMLInputElement,
   disableBackgroundThrottle: HTMLInputElement,
@@ -88,6 +89,59 @@ function getThemeFiles() {
   });
 }
 
+const DEVICE_ID_DISPLAY_LENGTH = 8; // Number of characters to show from device ID for unnamed devices
+
+async function populateAudioDevices() {
+  const selectElement = document.getElementById("audioOutputDevice") as HTMLSelectElement;
+  
+  // Check if setSinkId is supported by the browser
+  if (typeof HTMLMediaElement.prototype.setSinkId === 'undefined') {
+    Logger.log("Audio output device selection is not supported in this browser");
+    selectElement.disabled = true;
+    return;
+  }
+  
+  try {
+    // First try to enumerate without requesting permissions
+    let devices = await navigator.mediaDevices.enumerateDevices();
+    let audioOutputDevices = devices.filter(device => device.kind === 'audiooutput');
+    
+    // If device labels are not available, request minimal audio permissions
+    // Only do this if we have devices but no labels
+    if (audioOutputDevices.length > 0 && !audioOutputDevices[0].label) {
+      try {
+        // Note: This requests minimal microphone access to get device labels
+        // The permission is only used to enumerate devices and the stream is closed immediately
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+          audio: { echoCancellation: false, noiseSuppression: false } 
+        });
+        // Stop the stream immediately after getting permission
+        stream.getTracks().forEach(track => track.stop());
+        // Re-enumerate to get device labels
+        devices = await navigator.mediaDevices.enumerateDevices();
+        audioOutputDevices = devices.filter(device => device.kind === 'audiooutput');
+      } catch (permError) {
+        Logger.log("Could not get device labels due to permissions:", permError);
+        // Continue with unlabeled devices
+      }
+    }
+    
+    // Clear existing options except the default one
+    while (selectElement.options.length > 1) {
+      selectElement.remove(1);
+    }
+    
+    // Add all audio output devices
+    audioOutputDevices.forEach(device => {
+      const deviceLabel = device.label || `Device ${device.deviceId.slice(0, DEVICE_ID_DISPLAY_LENGTH)}`;
+      const option = new Option(deviceLabel, device.deviceId);
+      selectElement.add(option, null);
+    });
+  } catch (error) {
+    Logger.log("Failed to enumerate audio devices:", error);
+  }
+}
+
 function handleFileUploads() {
   const fileMessage = document.getElementById("file-message");
   fileMessage.innerText = "or drag and drop files here";
@@ -124,6 +178,7 @@ function refreshSettings() {
   try {
     adBlock.checked = settingsStore.get(settings.adBlock);
     api.checked = settingsStore.get(settings.api);
+    audioOutputDevice.value = settingsStore.get(settings.audioOutputDevice) || "";
     channel.value = settingsStore.get(settings.advanced.tidalUrl);
     customCSS.value = settingsStore.get<string, string[]>(settings.customCSS).join("\n");
     disableBackgroundThrottle.checked = settingsStore.get(settings.disableBackgroundThrottle);
@@ -191,6 +246,7 @@ window.addEventListener("DOMContentLoaded", () => {
 
   getThemeFiles();
   handleFileUploads();
+  populateAudioDevices();
 
   document.getElementById("close").addEventListener("click", hide);
   document.querySelectorAll(".external-link").forEach((elem) =>
@@ -244,6 +300,7 @@ window.addEventListener("DOMContentLoaded", () => {
 
   adBlock = get("adBlock");
   api = get("apiCheckbox");
+  audioOutputDevice = get<HTMLSelectElement>("audioOutputDevice");
   channel = get<HTMLSelectElement>("channel");
   customCSS = get("customCSS");
   disableBackgroundThrottle = get("disableBackgroundThrottle");
@@ -281,6 +338,7 @@ window.addEventListener("DOMContentLoaded", () => {
   refreshSettings();
   addInputListener(adBlock, settings.adBlock);
   addInputListener(api, settings.api);
+  addSelectListener(audioOutputDevice, settings.audioOutputDevice);
   addSelectListener(channel, settings.advanced.tidalUrl);
   addTextAreaListener(customCSS, settings.customCSS);
   addInputListener(disableBackgroundThrottle, settings.disableBackgroundThrottle);
