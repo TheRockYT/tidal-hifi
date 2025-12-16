@@ -677,22 +677,37 @@ function applyAudioOutputDevice() {
   });
 }
 
+let mediaObserver: MutationObserver | null = null;
+
 /**
  * Set up a MutationObserver to apply audio device to dynamically created media elements
  */
 function observeMediaElements() {
+  // Disconnect existing observer if any
+  if (mediaObserver) {
+    mediaObserver.disconnect();
+    mediaObserver = null;
+  }
+
   const deviceId = settingsStore.get<string, string>(settings.audioOutputDevice);
   
   if (!deviceId) {
     return; // Use default device
   }
 
-  const observer = new MutationObserver((mutations) => {
+  mediaObserver = new MutationObserver((mutations) => {
+    // Fetch the current device ID dynamically in case it changed
+    const currentDeviceId = settingsStore.get<string, string>(settings.audioOutputDevice);
+    
+    if (!currentDeviceId) {
+      return; // Device was reset to default
+    }
+    
     mutations.forEach((mutation) => {
       mutation.addedNodes.forEach((node) => {
         if (node instanceof HTMLMediaElement) {
           if (typeof node.setSinkId === 'function') {
-            node.setSinkId(deviceId).catch((error) => {
+            node.setSinkId(currentDeviceId).catch((error) => {
               Logger.log(`Failed to set audio output device on new element:`, error);
             });
           }
@@ -701,7 +716,7 @@ function observeMediaElements() {
           const mediaElements = node.querySelectorAll('audio, video');
           mediaElements.forEach((element: HTMLMediaElement) => {
             if (typeof element.setSinkId === 'function') {
-              element.setSinkId(deviceId).catch((error) => {
+              element.setSinkId(currentDeviceId).catch((error) => {
                 Logger.log(`Failed to set audio output device on nested element:`, error);
               });
             }
@@ -711,7 +726,7 @@ function observeMediaElements() {
     });
   });
 
-  observer.observe(document.body, {
+  mediaObserver.observe(document.body, {
     childList: true,
     subtree: true,
   });
@@ -727,9 +742,10 @@ function initAudioOutputDevice() {
     observeMediaElements();
   });
 
-  // Reapply when the setting changes
+  // Reapply when the setting changes and restart observer
   ipcRenderer.on(globalEvents.storeChanged, () => {
     applyAudioOutputDevice();
+    observeMediaElements(); // Restart observer with new device ID
   });
 }
 

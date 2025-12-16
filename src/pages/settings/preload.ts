@@ -93,11 +93,25 @@ async function populateAudioDevices() {
   const selectElement = document.getElementById("audioOutputDevice") as HTMLSelectElement;
   
   try {
-    // Request permission to enumerate devices
-    await navigator.mediaDevices.getUserMedia({ audio: true });
+    // First try to enumerate without requesting permissions
+    let devices = await navigator.mediaDevices.enumerateDevices();
+    let audioOutputDevices = devices.filter(device => device.kind === 'audiooutput');
     
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    const audioOutputDevices = devices.filter(device => device.kind === 'audiooutput');
+    // If device labels are not available, request minimal audio permissions
+    if (audioOutputDevices.length > 0 && !audioOutputDevices[0].label) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+          audio: { echoCancellation: false, noiseSuppression: false } 
+        });
+        // Stop the stream immediately after getting permission
+        stream.getTracks().forEach(track => track.stop());
+        // Re-enumerate to get device labels
+        devices = await navigator.mediaDevices.enumerateDevices();
+        audioOutputDevices = devices.filter(device => device.kind === 'audiooutput');
+      } catch (permError) {
+        Logger.log("Could not get device labels due to permissions:", permError);
+      }
+    }
     
     // Clear existing options except the default one
     while (selectElement.options.length > 1) {
