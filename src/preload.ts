@@ -668,9 +668,10 @@ function applyAudioOutputDevice() {
 
   // Apply to all existing audio/video elements
   const mediaElements = document.querySelectorAll('audio, video');
-  mediaElements.forEach((element: HTMLMediaElement) => {
-    if (typeof element.setSinkId === 'function') {
-      element.setSinkId(deviceId).catch((error) => {
+  mediaElements.forEach((element) => {
+    const mediaElement = element as HTMLMediaElement;
+    if (typeof mediaElement.setSinkId === 'function') {
+      mediaElement.setSinkId(deviceId).catch((error) => {
         Logger.log(`Failed to set audio output device on element:`, error);
       });
     }
@@ -714,9 +715,10 @@ function observeMediaElements() {
         } else if (node instanceof HTMLElement) {
           // Check for media elements within the added node
           const mediaElements = node.querySelectorAll('audio, video');
-          mediaElements.forEach((element: HTMLMediaElement) => {
-            if (typeof element.setSinkId === 'function') {
-              element.setSinkId(currentDeviceId).catch((error) => {
+          mediaElements.forEach((element) => {
+            const mediaElement = element as HTMLMediaElement;
+            if (typeof mediaElement.setSinkId === 'function') {
+              mediaElement.setSinkId(currentDeviceId).catch((error) => {
                 Logger.log(`Failed to set audio output device on nested element:`, error);
               });
             }

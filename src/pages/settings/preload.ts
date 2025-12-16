@@ -89,6 +89,8 @@ function getThemeFiles() {
   });
 }
 
+const DEVICE_ID_DISPLAY_LENGTH = 8; // Number of characters to show from device ID for unnamed devices
+
 async function populateAudioDevices() {
   const selectElement = document.getElementById("audioOutputDevice") as HTMLSelectElement;
   
@@ -108,6 +110,8 @@ async function populateAudioDevices() {
     // Only do this if we have devices but no labels
     if (audioOutputDevices.length > 0 && !audioOutputDevices[0].label) {
       try {
+        // Note: This requests minimal microphone access to get device labels
+        // The permission is only used to enumerate devices and the stream is closed immediately
         const stream = await navigator.mediaDevices.getUserMedia({ 
           audio: { echoCancellation: false, noiseSuppression: false } 
         });
@@ -129,7 +133,8 @@ async function populateAudioDevices() {
     
     // Add all audio output devices
     audioOutputDevices.forEach(device => {
-      const option = new Option(device.label || `Device ${device.deviceId.slice(0, 8)}`, device.deviceId);
+      const deviceLabel = device.label || `Device ${device.deviceId.slice(0, DEVICE_ID_DISPLAY_LENGTH)}`;
+      const option = new Option(deviceLabel, device.deviceId);
       selectElement.add(option, null);
     });
   } catch (error) {
